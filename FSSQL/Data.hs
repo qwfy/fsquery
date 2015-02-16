@@ -5,6 +5,7 @@ data SQL = Select [String]
          | From [String]
          | Where Guard
          | Con SQL SQL
+         | Dummy
          deriving (Show)
 
 
@@ -18,6 +19,7 @@ data Guard = GAtom CompareOperator FieldName FieldValue
 type Table = [Row]
 type Row = [Field]
 type Field = (String, String)
+
 
 type FieldName = String
 type FieldValue = String

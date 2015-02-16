@@ -1,6 +1,7 @@
 module FSSQL.Eval (evalSQL) where
 
 import Control.Monad (forM, liftM2)
+import Data.Maybe (fromJust)
 
 import FSSQL.Data
 import FSSQL.FileMeta
@@ -13,13 +14,18 @@ evalSQL = eval []
 
 eval :: Table -> SQL -> IO Table
 
+eval t Dummy = return t
+
 eval t (Con l r) = eval t l >>= flip eval r
 
 eval _ (Select []) = error "No columns specified."
 eval rs (Select ["*"]) = return rs
-eval rs (Select cols) = return $ map interestedCols rs
+eval rs (Select cols) =
+    return $ map (reOrder . interestedCols) rs
     where interestedCols row =
             [kv | kv <- row, fst kv `elem` cols]
+          reOrder row =
+            [(k, fromJust $ lookup k row) | k <- cols]
 
 eval [] (From sources) = getTableFromMany sources
 

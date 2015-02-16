@@ -51,8 +51,8 @@ pickoutDirs [] = return []
 pickoutDirs (x:xs) = do
     isDir <- doesDirectoryExist x
     if isDir
-      then liftM ([x]++) (pickoutDirs xs)
-      else pickoutDirs xs
+    then liftM ([x]++) (pickoutDirs xs)
+    else pickoutDirs xs
     
 getFileMeta :: FilePath -> FilePath -> IO Row
 getFileMeta topDir fPath = do
@@ -115,5 +115,5 @@ cPath = canonicalizePath
 canonicalizePath :: FilePath -> FilePath
 canonicalizePath = stripR . (replace "\\" "/") . (replace "\\\\" "/")
     where stripR str = if "/" `isSuffixOf` str
-                         then stripR $ init str
-                         else str
+                       then stripR $ init str
+                       else str
