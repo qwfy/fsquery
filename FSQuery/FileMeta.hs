@@ -1,4 +1,4 @@
-module FSSQL.FileMeta
+module FSQuery.FileMeta
     ( getTableFromOne
     , getTableFromMany
     ) where
@@ -24,8 +24,8 @@ import System.PosixCompat.Files
     , FileStatus
     )
 
-import FSSQL.Data
-import FSSQL.UnitConvert
+import FSQuery.Data
+import FSQuery.UnitConvert
 
 getTableFromMany :: [FilePath] -> IO Table
 getTableFromMany [] = return []
@@ -53,7 +53,7 @@ pickoutDirs (x:xs) = do
     if isDir
     then liftM ([x]++) (pickoutDirs xs)
     else pickoutDirs xs
-    
+
 getFileMeta :: FilePath -> FilePath -> IO Row
 getFileMeta topDir fPath = do
     fStatus <- getFileStatus fPath
@@ -63,12 +63,12 @@ getFileMeta topDir fPath = do
                   case stripPrefix pre str of
                     Nothing -> str
                     Just x -> x
-    let (fullName:baseName:extension:[]) = getNames cononPath (isDirectory fStatus)
+    let (name:baseName:extension:[]) = getNames cononPath (isDirectory fStatus)
     atime <- epochToLocaleHuman ( (read $ show $ accessTime fStatus) :: Integer       )
     mtime <- epochToLocaleHuman ( (read $ show $ modificationTime fStatus) :: Integer )
     ctime <- epochToLocaleHuman ( (read $ show $ statusChangeTime fStatus) :: Integer )
     let r = [ ("path", cononPath)
-            , ("fullname", fullName)
+            , ("name", name)
             , ("basename", baseName)
             , ("extension", extension)
             , ("depth", getDepth cononPath)
@@ -89,18 +89,18 @@ getType fStatus
 
 type IsDir = Bool
 getNames :: FilePath -> IsDir -> [String]
-getNames fPath True = map cPath [fullName, baseName, ""]
-    where fullName = baseName
+getNames fPath True = map cPath [name, baseName, ""]
+    where name = baseName
           baseName = takeBaseName . cPath $ fPath
-getNames fPath False = map cPath [fullName, baseName, extension]
-    where fullName = baseName ++ case extension of
+getNames fPath False = map cPath [name, baseName, extension]
+    where name = baseName ++ case extension of
                                    "" -> ""
                                    x -> "." ++ x
           baseName = takeBaseName . cPath $ fPath
           extension = case takeExtension . cPath $ fPath of
                         ('.':xs) -> xs
                         x -> x
-                        
+
 
 getDepth :: FilePath -> String
 getDepth "" = "0"

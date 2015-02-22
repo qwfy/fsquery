@@ -1,11 +1,13 @@
-module FSSQL.Data where
+module FSQuery.Data where
 
 
 data SQL = Select [String]
          | From [String]
          | Where Guard
+         | OrderBy [(FieldName, SortOrder)]
+         | Limit Integer
          | Con SQL SQL
-         | Dummy
+         | Nil
          deriving (Show)
 
 
@@ -24,3 +26,7 @@ type Field = (String, String)
 type FieldName = String
 type FieldValue = String
 type CompareOperator = String
+
+
+type SortOrder = String
+type OrderSpec = (FieldName, SortOrder)
