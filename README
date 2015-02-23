@@ -1,0 +1,39 @@
+What is FSQuery
+---------------
+FSQuery is a command line tool, it allows you to find files in file system with a SQL-like language.
+
+How to use it
+-------------
+This program is not on hackage, you need to clone this repo to use it. (Don't install it globally, it's not well tested)
+
+    $ git clone https://github.com/qwfy/fsquery.git ./FSQuery
+    $ cd FSQuery/src
+    # show help message with -h
+    $ runhaskell Main.hs -h
+    # or, build it with
+    $ ghc -o fsquery Main.hs
+
+
+Example
+-------
+Suppose that you have built FSQuery, and the name of executable is "fsquery".
+
+    # type "fsquery" with no arguments will drop you into REPL mode,
+    # with "FSQuery <<" being the prompt.
+    $ fsquery
+    FSQuery << select path, size, type
+    FSQuery << from ./foo
+    FSQuery << where depth = 0 and size <= 1.5mib
+    FSQuery << order by size desc, name asc
+    FSQuery << limit 7;
+
+will give you something like this:
+
+    | bar             | 2.00KiB (2048B) | f |
+    | another bar     | 1.00KiB (1024B) | f |
+    | yet another bar | 500B            | f |
+    (3 lines)
+
+Warning
+-------
+Currently, there is no automated test for this program. If it type-checks, it's probably correct, so they say...
