@@ -1,4 +1,4 @@
-module FSQuery.Parser (parseSQL) where
+module System.FSQuery.Parser (parseSQL) where
 
 import Control.Applicative
 import Control.Monad (liftM, liftM2, liftM3, when)
@@ -6,7 +6,7 @@ import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import Text.ParserCombinators.Parsec.Char (CharParser)
 import Data.Char (toLower, toUpper)
 
-import FSQuery.Data
+import System.FSQuery.Data
 
 
 parseSQL :: String -> Either ParseError SQL

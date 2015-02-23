@@ -1,4 +1,4 @@
-module FSQuery.Data where
+module System.FSQuery.Data where
 
 
 data SQL = Select [String]

@@ -1,12 +1,12 @@
-module FSQuery.Eval (evalSQL) where
+module System.FSQuery.Eval (evalSQL) where
 
 import Control.Monad (forM, liftM, liftM2)
 import Data.Maybe (fromJust)
 import Data.List (sortBy, genericTake)
 
-import FSQuery.Data
-import FSQuery.FileMeta
-import FSQuery.UnitConvert
+import System.FSQuery.Data
+import System.FSQuery.FileMeta
+import System.FSQuery.UnitConvert
 
 
 evalSQL :: SQL -> IO (Either String Table)

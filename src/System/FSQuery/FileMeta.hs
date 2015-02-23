@@ -1,4 +1,4 @@
-module FSQuery.FileMeta
+module System.FSQuery.FileMeta
     ( getTableFromOne
     , getTableFromMany
     ) where
@@ -24,8 +24,8 @@ import System.PosixCompat.Files
     , FileStatus
     )
 
-import FSQuery.Data
-import FSQuery.UnitConvert
+import System.FSQuery.Data
+import System.FSQuery.UnitConvert
 
 getTableFromMany :: [FilePath] -> IO Table
 getTableFromMany [] = return []

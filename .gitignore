@@ -1,3 +1,6 @@
 *.hi
 *.o
 *.exe
+dist
+cabal.sandbox.config
+.cabal-sandbox

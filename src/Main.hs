@@ -1,9 +1,9 @@
 module Main where
 
-import FSQuery.Data
-import FSQuery.Eval
-import FSQuery.Parser
-import FSQuery.UnitConvert
+import System.FSQuery.Data
+import System.FSQuery.Eval
+import System.FSQuery.Parser
+import System.FSQuery.UnitConvert
 
 import System.IO
 import System.Environment (getArgs)
@@ -17,7 +17,7 @@ main = do
       ["-h"]     -> showHelp
       ["--help"] -> showHelp
       ["-"]      -> getCommand "" >>= evalAndPrint
-      _          -> evalAndPrint $ "select " ++ intercalate " " args
+      _          -> evalAndPrint $ args !! 0
 
 repl :: IO ()
 repl = do
@@ -103,21 +103,21 @@ showHelp :: IO ()
 showHelp = putStrLn (unlines h) where
   h =
     [ ""
-    , "select: Query file system using SQL."
+    , "fsquery: Query file system using SQL."
     , ""
     , "Usage:"
     , ""
-    , "  select {-h|--help}"
+    , "  fsquery {-h|--help}"
     , "    Show this help message."
     , ""
-    , "  select"
+    , "  fsquery"
     , "    Enter REPL."
     , ""
-    , "  select -"
+    , "  fsquery -"
     , "    Read query from stdin."
     , ""
-    , "  select <column names> from <dirname> [where] [order by] [limit] ;"
-    , "    Use args as query. You don't need to type another 'select' in args."
+    , "  fsquery <column names> from <dirname> [where] [order by] [limit] ;"
+    , "    Use args as query."
     , "    <column names> can be:"
     , "      path      : full path with <dirname> stripped."
     , "      name      : name of the file, equals to basename + ['.' +] extension"

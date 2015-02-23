@@ -1,4 +1,4 @@
-module FSQuery.UnitConvert
+module System.FSQuery.UnitConvert
     ( unifyFileSize
     , convertFileSizeUnit
     , epochToLocaleHuman
