@@ -5,15 +5,13 @@ module System.FSQuery.UnitConvert
     , bytesToHuman
     ) where
 
-import qualified Data.Char as DChar
 import Control.Applicative (liftA, liftA2)
-
 import System.Locale
 import Data.Time
 import Data.Time.Format
-
 import Numeric (showFFloat)
-import Data.String.Utils (replace)
+
+import System.FSQuery.Util (toLower)
 
 epochToLocaleHuman :: Integer -> IO String
 epochToLocaleHuman seconds = do
@@ -80,10 +78,6 @@ bytesToHuman b =
          Nothing -> show b ++ "B"
          Just x -> showFFloat (Just 2) newSize "" ++ x
 
-
-toLower :: String -> String
-toLower "" = ""
-toLower (x:xs) = DChar.toLower x : toLower xs
 
 mapTuple :: (a->b) -> (a, a) -> (b, b)
 mapTuple f (x, y) = (f x, f y)

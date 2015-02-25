@@ -2,7 +2,8 @@ module System.FSQuery.Eval (evalSQL) where
 
 import Control.Monad (forM, liftM, liftM2)
 import Data.Maybe (fromJust)
-import Data.List (sortBy, genericTake)
+import Data.List (sortBy, genericTake, isInfixOf)
+import Text.Regex.TDFA
 
 import System.FSQuery.Data
 import System.FSQuery.FileMeta
@@ -11,9 +12,6 @@ import System.FSQuery.UnitConvert
 
 evalSQL :: SQL -> IO (Either String Table)
 evalSQL = eval $ Right []
--- evalSQL s = do
---     print s
---     eval (Right []) s
 
 
 eval :: (Either String Table) -> SQL -> IO (Either String Table)
@@ -61,8 +59,8 @@ eval (Right table@(h:_)) (Where (GAtom op k v))
         where
         { result = filter (isGuardTrue op k v) table
         ; isGuardTrue operator key queryV row
-            | key /= "size" = (readOp operator) machineV queryV
-            | otherwise = compareFileSize operator machineV queryV
+            | key == "size" = (readOpForSize operator) machineV queryV
+            | otherwise = (readOp operator) machineV queryV
             where machineV = fromJust $ lookup key row
         }
 
@@ -80,36 +78,31 @@ eval (Right t@(r:_)) (OrderBy orderSpecs) = do
 eval t (Limit n) =
     return $ liftM (genericTake n) t
 
+readOp :: String -> (String -> String -> Bool)
 readOp "="  = (==)
+readOp ">"  = (>)
+readOp "<"  = (<)
 readOp "/=" = (/=)
 readOp ">=" = (>=)
 readOp "<=" = (<=)
-readOp ">"  = (>)
-readOp "<"  = (<)
+readOp "~=" = \str pat -> str =~ pat :: Bool
 
-
-anyToStringTuple :: Ord a => CompareOperator -> a -> a -> (String, String)
-anyToStringTuple op l r
-    | (readOp op) l r =
-        case op of
-          "="  -> aa
-          ">"  -> ba
-          "<"  -> ab
-          "/=" -> ab
-          ">=" -> ba
-          "<=" -> ab
-    | otherwise =
-        case op of
-          "="  -> ab
-          ">"  -> ab
-          "<"  -> ba
-          "/=" -> aa
-          ">=" -> ab
-          "<=" -> ba
-    where
-      aa = ("a", "a")
-      ab = ("a", "b")
-      ba = ("b", "a")
+readOpForSize :: String -> (String -> String -> Bool)
+readOpForSize "=" = \m h ->
+    let (m', h') = unifyFileSize m h
+    in m' == h'
+readOpForSize ">" = \m h ->
+    let (m', h') = unifyFileSize m h
+    in m' > h'
+readOpForSize "<" = \m h ->
+    let (m', h') = unifyFileSize m h
+    in m' < h'
+readOpForSize ">=" = \m h ->
+    let (m', h') = unifyFileSize m h
+    in m' >= h'
+readOpForSize "<=" = \m h ->
+    let (m', h') = unifyFileSize m h
+    in m' <= h'
 
 isSubsetOf :: (Eq a) => [a] -> [a] -> Bool
 xs `isSubsetOf` ys = null $ filter (`elem` ys) xs
@@ -133,11 +126,6 @@ compare' "size" sortOrder x y =
           y' = (read $ init y) :: Integer
 compare' _ sortOrder x y =
     flipOrdering sortOrder $ compare x y
-
-compareFileSize :: CompareOperator -> String -> String -> Bool
-compareFileSize op mv hv =
-    (readOp op) m h
-      where (m, h) = unifyFileSize mv hv
 
 flipOrdering :: SortOrder -> Ordering -> Ordering
 flipOrdering "asc" x = x

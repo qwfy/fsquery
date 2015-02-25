@@ -72,11 +72,10 @@ p_limit = option Nil p_limit'
 p_limit' = do
     lookAhead p_bLimit
     p_bLimit
-    x <- many digit
+    x <- many1 digit <* spaces
     lookAhead p_eLimit
     return $ Limit (read x :: Integer)
 
---------------------------------------
 
 p_guard :: CharParser () Guard
 p_guard = do
@@ -97,9 +96,9 @@ p_gGroup = do
 
 p_gConnector :: CharParser () (Guard -> Guard -> Guard)
 p_gConnector = do
-    c <- try (string "and" <* skipMany1 space)
-         <|> try (string "or" <* skipMany1 space)
-         <?> "\"and\"/\"or\" in where clause"
+    c <- try (iString "and" <* skipMany1 space)
+         <|> try (iString "or" <* skipMany1 space)
+         <?> "\"and\"/\"or\" in WHERE clause"
     spaces
     case c of
       "and" -> return GAnd
@@ -127,8 +126,9 @@ p_gAtomOp = do
           <|> try (string ">=")
           <|> try (string "<=")
           <|> try (string ">")
-          <|> (string "<")
-          <?> "operator in where clause"
+          <|> try (string "<")
+          <|>     (string "~=")
+          <?> "operator in WHERE clause"
     spaces
     return op
 
@@ -136,7 +136,7 @@ p_gAtomValue :: CharParser () String
 p_gAtomValue = do
     val <- try p_quotedString
            <|> many1 (noneOf disallowedCharInBareColumnValue)
-           <?> "column value in where clause"
+           <?> "column value in WHERE clause"
     spaces
     return val
 
@@ -182,14 +182,14 @@ p_gFileSizeUnit = do
 -- The "b" in "p_bSelect" means "beginning of",
 -- "e" in "p_eSelect" means "end of".
 p_bSelect :: CharParser () String
-p_bSelect = string "select" <* skipMany1 space
+p_bSelect = iString "select" <* skipMany1 space
 p_eSelect =
     try p_bFrom
     <|> p_eQuery
     <?> "end of SELECT"
 
 p_bFrom :: CharParser () String
-p_bFrom = string "from" <* skipMany1 space
+p_bFrom = iString "from" <* skipMany1 space
 p_eFrom =
     try p_bWhere
     <|> try p_bOrderBy
@@ -198,7 +198,7 @@ p_eFrom =
     <?> "end of FROM"
 
 p_bWhere :: CharParser () String
-p_bWhere = string "where" <* skipMany1 space
+p_bWhere = iString "where" <* skipMany1 space
 p_eWhere =
     try p_bOrderBy
     <|> try p_bLimit
@@ -207,8 +207,8 @@ p_eWhere =
 
 p_bOrderBy :: CharParser () String
 p_bOrderBy = do
-    x <- string "order" <* skipMany1 space
-    y <- string "by" <* skipMany1 space
+    x <- iString "order" <* skipMany1 space
+    y <- iString "by" <* skipMany1 space
     return $ x++y
 p_eOrderBy =
     try p_bLimit
@@ -216,7 +216,7 @@ p_eOrderBy =
     <?> "end of ORDER BY"
 
 p_bLimit :: CharParser () String
-p_bLimit = string "limit" <* skipMany1 space
+p_bLimit = iString "limit" <* skipMany1 space
 p_eLimit =
     p_eQuery
     <?> "end of LIMIT"
@@ -253,7 +253,9 @@ p_obCell = do
     return (x, y)
 
 p_obOrder =
-    (iString "asc" <|> iString "desc") <* spaces
+    (    (iString "asc"  *> return "asc")
+     <|> (iString "desc" *> return "desc")
+    ) <* spaces
 
 
 -- Allow these characters in bare column name,
