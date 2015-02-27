@@ -4,11 +4,12 @@ import System.FSQuery.Data
 import System.FSQuery.Eval
 import System.FSQuery.Parser
 import System.FSQuery.UnitConvert
-import System.FSQuery.Util (trim)
+import System.FSQuery.Util
 
 import System.IO
 import System.Environment (getArgs)
 import Data.List (intercalate, transpose)
+import Data.Char (isSpace)
 
 
 main :: IO ()
@@ -19,7 +20,7 @@ main = do
       ["-h"]     -> showHelp
       ["--help"] -> showHelp
       ["-"]      -> getCommand "" >>= evalAndPrint
-      _          -> evalAndPrint $ args !! 0
+      _          -> evalAndPrint $ head args
 
 
 repl :: IO ()
@@ -34,7 +35,7 @@ repl = do
 evalAndPrint :: String -> IO ()
 evalAndPrint sqlStr = case parseSQL sqlStr of
     (Left parseErr) ->
-      putStrLn $ show parseErr
+      print parseErr
     (Right sql) -> do
       result <- evalSQL sql
       case result of
@@ -42,14 +43,14 @@ evalAndPrint sqlStr = case parseSQL sqlStr of
           putStrLn err
         (Right table) -> do
           prettyPrintTable table
-          putStrLn $ "(" ++ (show $ length table) ++ " lines)\n"
+          putStrLn $ "(" ++ show (length table) ++ " lines)\n"
 
 
 getCommand :: String -> IO String
 getCommand accu = do
     putStr "FSQuery << " >> hFlush stdout
     c <- getLine
-    let line = trim $ accu ++ c
+    let line = trimWhile isSpace $ accu ++ c
     case line of
       ""  -> getCommand ""
       ":" -> getCommand ""
@@ -86,24 +87,24 @@ transformTable t@(h:_) = map (map f) t
 
 rowToString :: [Int] -> Row -> String
 rowToString widths row =
-    "| " ++ (intercalate " | " b) ++ " |"
+    "| " ++ intercalate " | " b ++ " |"
     where a = zip widths row
           b = map f a
-          f x = fieldToString (fst x) (snd x)
+          f = uncurry fieldToString
 
 
 fieldToString :: Int -> Field -> String
 fieldToString 0 (_, v) = v
 fieldToString n f =
     let v = fieldToString 0 f
-        p = take (n - length v) (repeat ' ')
+        p = replicate (n - length v) ' '
     in v ++ p
 
 fileSizeToString v =
     if convertFileSizeUnit v "B" >= 1024.00
-      then ( bytesToHuman ((read $ takeDecimal v)::Integer)
-             ++ " (" ++ v ++ ")"
-           )
+      then bytesToHuman ((read $ takeDecimal v)::Integer)
+           ++ " (" ++ v ++ ")"
+           
       else v
     where isDecimal = (`elem` ("."++['0'..'9']))
           takeDecimal = takeWhile isDecimal

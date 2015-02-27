@@ -6,11 +6,11 @@ module System.FSQuery.FileMeta
 
 import System.Directory (doesDirectoryExist, getDirectoryContents)
 import System.FilePath ((</>), takeBaseName, takeExtension)
-import Data.List (nub, (\\))
+import Data.List (nub, (\\), stripPrefix, isSuffixOf)
 import Control.Monad (forM, liftM)
+import Data.Maybe (fromMaybe)
 
 import Data.String.Utils (replace)
-import Data.List (stripPrefix, isSuffixOf)
 
 import System.PosixCompat.Files
     ( getFileStatus
@@ -44,7 +44,7 @@ getRecursivePaths topDir = do
     let paths'' = filter (`notElem` [".", ".."]) paths'
     let paths = map (topDir </>) paths''
     dirs <- pickoutDirs paths
-    liftM (paths++) (liftM concat (forM dirs getRecursivePaths))
+    liftM ((paths++) . concat) $ forM dirs getRecursivePaths
 
 pickoutDirs :: [FilePath] -> IO [FilePath]
 pickoutDirs [] = return []
@@ -60,10 +60,8 @@ getFileMeta topDir fPath = do
     let cononPath' = cPath fPath
     let cononPath = stripPrefix' (cPath topDir ++ "/") cononPath'
           where stripPrefix' pre str =
-                  case stripPrefix pre str of
-                    Nothing -> str
-                    Just x -> x
-    let (name:baseName:extension:[]) = getNames cononPath (isDirectory fStatus)
+                  fromMaybe str $ stripPrefix pre str
+    let [name, baseName, extension] = getNames cononPath (isDirectory fStatus)
     atime <- epochToLocaleHuman ( (read $ show $ accessTime fStatus) :: Integer       )
     mtime <- epochToLocaleHuman ( (read $ show $ modificationTime fStatus) :: Integer )
     ctime <- epochToLocaleHuman ( (read $ show $ statusChangeTime fStatus) :: Integer )
@@ -113,7 +111,7 @@ getDepth (x:xs)
 -- remove trailing forward slashes
 cPath = canonicalizePath
 canonicalizePath :: FilePath -> FilePath
-canonicalizePath = stripR . (replace "\\" "/") . (replace "\\\\" "/")
+canonicalizePath = stripR . replace "\\" "/" . replace "\\\\" "/"
     where stripR str = if "/" `isSuffixOf` str
                        then stripR $ init str
                        else str

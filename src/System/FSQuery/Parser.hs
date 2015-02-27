@@ -1,16 +1,23 @@
-module System.FSQuery.Parser (parseSQL) where
+module System.FSQuery.Parser
+    ( parseSQL
+    , prop_parseSQL
+    ) where
 
 import Control.Applicative
-import Control.Monad (liftM, liftM2, liftM3, when)
+import Control.Monad (liftM, liftM2, liftM3, when, foldM)
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import Text.ParserCombinators.Parsec.Char (CharParser)
 import Data.Char (toLower, toUpper)
 
 import System.FSQuery.Data
+import System.FSQuery.Util
+
+import Test.QuickCheck
+import Data.List (intercalate)
 
 
 parseSQL :: String -> Either ParseError SQL
-parseSQL input = parse p_sql "" input
+parseSQL = parse p_sql ""
 
 -- Note: rule of comsuming white spaces
 -- A parser whose prefix is 'p_' should always consume
@@ -78,11 +85,11 @@ p_limit' = do
 
 
 p_guard :: CharParser () Guard
-p_guard = do
+p_guard =
     chainl1 p_gUnit p_gConnector
 
 p_gUnit :: CharParser () Guard
-p_gUnit = do
+p_gUnit =
         p_gGroup
     <|> p_gAtom
     <?> "unit of guard"
@@ -91,14 +98,14 @@ p_gGroup :: CharParser () Guard
 p_gGroup = do
     char '(' <* spaces
     c <- p_guard
-    char ')' <* skipMany1 space
+    char ')' <* spaces
     return $ GGroup c
 
 p_gConnector :: CharParser () (Guard -> Guard -> Guard)
 p_gConnector = do
-    c <- try (iString "and" <* skipMany1 space)
-         <|> try (iString "or" <* skipMany1 space)
-         <?> "\"and\"/\"or\" in WHERE clause"
+    c <- try (iString "and" >> skipMany1 space >> return "and")
+         <|> try (iString "or" >> skipMany1 space >> return "or")
+         <?> "\"AND\"/\"OR\" in WHERE clause"
     spaces
     case c of
       "and" -> return GAnd
@@ -146,7 +153,7 @@ p_gAtomValue = do
 -- when converting the unit. I'm not sure this is
 -- the correct way to do this (error handling).
 p_gFileSize :: CharParser () String
-p_gFileSize = do
+p_gFileSize =
     try p_gQuotedFileSize
     <|> p_gBareFileSize
 
@@ -227,10 +234,12 @@ p_eQuery =
     <?> "end of query"
 
 p_commaSeparatedColumnValues :: CharParser () [String]
-p_commaSeparatedColumnValues = sepBy p_columnCell (char ',' <* spaces)
+p_commaSeparatedColumnValues =
+    sepBy p_columnCell (char ',' <* spaces)
 
 p_commaSeparatedSourceValues :: CharParser () [String]
-p_commaSeparatedSourceValues = sepBy p_sourceCell (char ',' <* spaces)
+p_commaSeparatedSourceValues =
+    sepBy p_sourceCell (char ',' <* spaces)
 
 p_columnCell :: CharParser () FieldName
 p_columnCell =
@@ -266,17 +275,199 @@ disallowedCharInBareColumnValue = " ()\";"
 
 -- case insensive matching
 iChar c = char (toLower c) <|> char (toUpper c)
-iString s = mapM iChar s
+iString = mapM iChar
 
 p_quotedString :: CharParser () String
 p_quotedString = do
     char '"' <?> "open quote"
     -- Note: This would allow empty string.
     c <- many p_quotedChar
-    (char '"' <* skipMany1 space) <?> "close quote"
+    (char '"' <* spaces) <?> "close quote"
     return c
 
 p_quotedChar :: CharParser () Char
 p_quotedChar =
     noneOf "\""
     <|> try (string "\"\"" >> return '"')
+
+
+
+----------------------------------------------------------------------
+-- QuickCheck
+----------------------------------------------------------------------
+
+prop_parseSQL :: SQLString -> Bool
+prop_parseSQL sqlStr =
+    case parseSQL $ show sqlStr of
+      Left  _ -> False
+      Right _ -> True
+
+newtype SQLString = SQLString String
+
+instance Show SQLString where
+    show (SQLString s) = s
+
+instance Arbitrary SQLString where
+    arbitrary = do
+      selectC  <- genSelect
+      fromC    <- genFrom
+      whereC   <- genWhere
+      orderByC <- genOrderBy
+      limitC   <- genLimit
+      let t = [selectC, fromC, whereC, orderByC, limitC]
+      let s = unwords $ filter (not . null) t
+      r <- mixCase $ s ++ ";"
+      return $ SQLString r
+
+genSelect = do
+    cols <- genColumns
+    return $ "select " ++ intercalate "," cols
+
+genFrom = do
+    srcs <- genSources
+    return $ "from " ++ intercalate "," srcs
+
+genColumns :: Gen [String]
+genColumns = resize 20 x
+    where x = listOf1 genOneColumn
+
+genOneColumn :: Gen String
+genOneColumn = do
+    let cols = [ "path", "name", "basename", "extension"
+               , "depth", "size", "atime", "mtime", "ctime" ]
+    let quotedCols = map doubleQuote cols
+    elements $ cols ++ quotedCols
+
+genSources :: Gen [String]
+genSources = resize 1 x
+    where x = listOf1 genSource
+
+genSource = resize 20 x
+    where x = listOf1 $ elements (['a'..'z'] ++ ['A'..'Z'])
+
+genWhere = do
+    g <- genGuards
+    return $ if null g
+             then ""
+             else "where " ++ g
+
+genAtomGuard = do
+    col <- genOneColumn
+    op <- elements ["=", ">", "<", "/=" , ">=" , "<=" , "~="]
+    let genVal = case trimWhile (=='"') col of
+                   "size"  -> genFileSize
+                   "depth" -> genNatural
+                   "atime" -> genTime
+                   "ctime" -> genTime
+                   "mtime" -> genTime
+                   _       -> genString
+    val <- genVal
+    return $ foldl1 (++) [col, op, val]
+
+genAtomGuards = do
+    x <- listOf1 genAtomGuard
+    let y = filter (not . null) x
+    chainGuard genConnector y
+
+genGroupGuard = do
+    x <- genAtomGuards
+    return $ "(" ++ x ++ ")"
+
+genUnitGuard = oneof [genAtomGuard, genGroupGuard]
+
+genGuards = do
+    x <- listOf genUnitGuard
+    let y = filter (not . null) x
+    chainGuard genConnector y
+
+genConnector = elements [" and ", " or "]
+
+chainGuard :: Gen String -> [String] -> Gen String
+chainGuard _ [] = return ""
+chainGuard _ [x] = return x
+chainGuard c (x:y:rest) = do
+    h <- chainGuard2 c [x, y]
+    chainGuard c (h:rest)
+
+chainGuard2 :: Gen String -> [String] -> Gen String
+chainGuard2 g [x,y] = do
+    c <- g
+    return $ x ++ c ++ y
+
+genOrderBy = do
+    x <- genOrderBys
+    return $ if null x
+             then ""
+             else "order by " ++ intercalate "," x
+
+genOrderBys = resize 10 x
+    where x = listOf genOneOrderBy
+genOneOrderBy = do
+    col <- genOneColumn
+    ord <- elements ["asc", "desc"]
+    return $ col ++ " " ++ ord
+
+genLimit = do
+    g <- elements [True, False]
+    if not g
+    then return ""
+    else do
+      n <- elements [0..65536]
+      return $ "limit " ++ show n
+
+
+genNatural = oneof [genPositiveInteger, fmap (:[]) genDigit]
+genPositiveInteger = do
+    h <- genDigit1
+    t <- listOf genDigit
+    return $ h:t
+
+genFloat = oneof [genNatural, x] where
+    x = do
+      h <- genNatural
+      t <- listOf1 $ elements digits
+      return $ h ++ "." ++ t
+
+genDigit = elements digits
+genDigit1 = elements digits1
+
+genFileSizeUnit =
+    elements [ "B"  , "KiB", "MiB"
+             , "GiB", "TiB", "PiB"
+             , "EiB", "ZiB", "YiB" ]
+
+genFileSize = do
+    n <- genFloat
+    u <- genFileSizeUnit
+    return $ n++u
+
+genTime = do
+    y  <- elements $ map show [1900, 3000]
+    m  <- genInt2 1 12
+    d  <- genInt2 1 31
+    hh <- genInt2 0 23
+    mm <- genInt2 0 59
+    ss <- genInt2 0 59
+    let date = intercalate "-" [y, m, d]
+    let time = intercalate ":" [hh, mm, ss]
+    return $ doubleQuote (date ++ " " ++ time)
+
+genInt2 :: Int -> Int -> Gen String
+genInt2 start stop = do
+    x <- elements $ map show [start, stop]
+    return $ if length x == 1 then '0':x else x
+
+
+genString = oneof [genBareString, genQuotedString]
+
+genBareString = listOf1 $ elements s
+    where s = concat [digits, letters, ".$^"]
+
+genQuotedString = fmap doubleQuote genBareString
+
+
+mixCase :: String -> Gen String
+mixCase = mapM f
+    where f c = do
+            u <- elements [True, False]
+            return $ if u then toUpper c else toLower c

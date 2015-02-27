@@ -1,6 +1,6 @@
 [ ] Unicode support, including regex
 
-[ ] QuickCheck
+[x] QuickCheck
 
 [ ] Automated test (HUnit? Compare result with GNU find?)
 

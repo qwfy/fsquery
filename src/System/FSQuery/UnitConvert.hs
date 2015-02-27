@@ -10,8 +10,9 @@ import System.Locale
 import Data.Time
 import Data.Time.Format
 import Numeric (showFFloat)
+import Data.Maybe (fromMaybe)
 
-import System.FSQuery.Util (toLower)
+import System.FSQuery.Util
 
 epochToLocaleHuman :: Integer -> IO String
 epochToLocaleHuman seconds = do
@@ -37,7 +38,7 @@ breakFileSize s' = (size, precision, unit)
       p = (reverse . dropWhile (`elem` alphas) . reverse . dropWhile (`elem` digits)) s
       isDecimal = (`elem` (digits++"."))
       size = takeWhile isDecimal s
-      unit = toLower $ dropWhile isDecimal s
+      unit = toLowerString $ dropWhile isDecimal s
       precision = case p of
                     "" -> 0
                     ('.':x) -> length x
@@ -46,10 +47,10 @@ convertFileSizeUnit :: String -> String -> Double
 convertFileSizeUnit src destUnit' =
     let (size, _, srcUnit) = breakFileSize src
         srcSize = read size :: Double
-        destUnit = toLower destUnit'
-        scale = case liftA (1024^^)  (liftA2 (-) (lookup srcUnit alist) (lookup destUnit alist)) of
-                  Nothing -> error "Can not convert unit."
-                  Just x -> x
+        destUnit = toLowerString destUnit'
+        scale = fromMaybe
+                  (error "Can not convert unit.")
+                  $ liftA (1024^^)  (liftA2 (-) (lookup srcUnit alist) (lookup destUnit alist))
         alist = [ ("b",   0)
                 , ("kib", 1)
                 , ("mib", 2)

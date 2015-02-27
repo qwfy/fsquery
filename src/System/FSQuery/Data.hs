@@ -4,7 +4,7 @@ module System.FSQuery.Data where
 data SQL = Select [String]
          | From [String]
          | Where Guard
-         | OrderBy [(FieldName, SortOrder)]
+         | OrderBy [OrderSpec]
          | Limit Integer
          | Con SQL SQL
          | Nil

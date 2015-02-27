@@ -1,7 +1,7 @@
 module System.FSQuery.Eval (evalSQL) where
 
 import Control.Monad (forM, liftM, liftM2)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isNothing)
 import Data.List (sortBy, genericTake, isInfixOf)
 import Text.Regex.TDFA
 
@@ -14,7 +14,7 @@ evalSQL :: SQL -> IO (Either String Table)
 evalSQL = eval $ Right []
 
 
-eval :: (Either String Table) -> SQL -> IO (Either String Table)
+eval :: Either String Table -> SQL -> IO (Either String Table)
 
 eval left@(Left x) _ = return left
 
@@ -50,9 +50,9 @@ eval t (Where (GOr g1 g2)) = do
 
 -- Choose those rows from [table] which make guard [k op v] true.
 -- If there is an error when evaluating the guard, a [Left] is returned.
-eval empty@(Right []) (Where (GAtom _ _ _)) = return empty
+eval empty@(Right []) (Where (GAtom{})) = return empty
 eval (Right table@(h:_)) (Where (GAtom op k v))
-    | lookup k h == Nothing =
+    | isNothing $ lookup k h =
         let errMsg = "There is no column named '" ++ k ++ "' in result set."
         in return $ Left errMsg
     | otherwise = return (Right result)
@@ -67,13 +67,13 @@ eval (Right table@(h:_)) (Where (GAtom op k v))
 eval t (OrderBy []) = return t
 eval right@(Right []) (OrderBy _) = return right
 eval (Right t@(r:_)) (OrderBy orderSpecs) = do
-    let colInQuery = [snd f | f <- orderSpecs]
-        colInTable = [snd f | f <- r]
-    case colInQuery `isSubsetOf` colInTable  of
-      True -> return (Right $ sortBy (compareRow orderSpecs) t)
-      False -> return (Left $ "Some columns in the ORDER BY clause "
-                              ++ "is not in the result set, so you "
-                              ++ "can't sort based on them.")
+    let colInQuery = [fst f | f <- orderSpecs]
+        colInTable = [fst f | f <- r]
+    return $ if colInQuery `isSubsetOf` colInTable
+             then Right $ sortBy (compareRow orderSpecs) t
+             else Left $ "Some columns in the ORDER BY clause "
+                         ++ "is not in the result set, so you "
+                         ++ "can't sort based on them."
 
 eval t (Limit n) =
     return $ liftM (genericTake n) t
@@ -105,7 +105,7 @@ readOpForSize "<=" = \m h ->
     in m' <= h'
 
 isSubsetOf :: (Eq a) => [a] -> [a] -> Bool
-xs `isSubsetOf` ys = null $ filter (`elem` ys) xs
+xs `isSubsetOf` ys = all (`elem` ys) xs
 
 -- Compare two rows using dictionary order, with dictionary being
 -- a list of column names.
