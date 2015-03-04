@@ -10,11 +10,11 @@ import System.FSQuery.FileMeta
 import System.FSQuery.UnitConvert
 
 
-evalSQL :: SQL -> IO (Either String Table)
+evalSQL :: SQL -> IO (Either EvalError Table)
 evalSQL = eval $ Right []
 
 
-eval :: Either String Table -> SQL -> IO (Either String Table)
+eval :: Either EvalError Table -> SQL -> IO (Either EvalError Table)
 
 eval left@(Left x) _ = return left
 
@@ -31,8 +31,8 @@ eval (Right rs) (Select cols) = return (Right selected)
       reOrder row = [(k, fromJust $ lookup k row) | k <- cols]
 
 eval (Right []) (From sources) =
-    fmap Right (getTableFromMany sources)
-
+    -- Note: Currently, we can only query from one directory.
+    fmap Right (getTableFromOne $ head sources)
 
 eval t (Where (GGroup expr)) =
     eval t (Where expr)
@@ -50,7 +50,8 @@ eval t (Where (GOr g1 g2)) = do
 
 -- Choose those rows from [table] which make guard [k op v] true.
 -- If there is an error when evaluating the guard, a [Left] is returned.
-eval empty@(Right []) (Where (GAtom{})) = return empty
+eval empty@(Right []) (Where (GAtom{})) =
+    return empty
 eval (Right table@(h:_)) (Where (GAtom op k v))
     | isNothing $ lookup k h =
         let errMsg = "There is no column named '" ++ k ++ "' in result set."

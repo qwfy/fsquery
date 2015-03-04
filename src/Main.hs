@@ -37,6 +37,7 @@ evalAndPrint sqlStr = case parseSQL sqlStr of
     (Left parseErr) ->
       print parseErr
     (Right sql) -> do
+      -- print sql
       result <- evalSQL sql
       case result of
         (Left err) ->
@@ -104,7 +105,7 @@ fileSizeToString v =
     if convertFileSizeUnit v "B" >= 1024.00
       then bytesToHuman ((read $ takeDecimal v)::Integer)
            ++ " (" ++ v ++ ")"
-           
+
       else v
     where isDecimal = (`elem` ("."++['0'..'9']))
           takeDecimal = takeWhile isDecimal
@@ -165,7 +166,7 @@ showHelp = putStrLn (unlines h) where
     , "    path      : Path of the file, with <directory> stripped, it will never begin with '/'."
     , "    name      : Name of the file, including extension (if it has one)."
     , "    basename  : Name without extension."
-    , "    extension : Extension of the file, without the dot. it's always an empty string for directory."
+    , "    extension : Extension of the file, without the dot."
     , "    depth     : Depth of the file, the depth of the files whose parent directory is <directory> is 0."
     , "    size      : Size of the file."
     , "    atime     : Last access time."

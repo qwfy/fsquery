@@ -4,7 +4,7 @@ module System.FSQuery.Parser
     ) where
 
 import Control.Applicative
-import Control.Monad (liftM, liftM2, liftM3, when, foldM)
+import Control.Monad (liftM, liftM2, liftM3, when, foldM, mplus)
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import Text.ParserCombinators.Parsec.Char (CharParser)
 import Data.Char (toLower, toUpper)
@@ -17,9 +17,40 @@ import Data.List (intercalate)
 
 
 parseSQL :: String -> Either ParseError SQL
-parseSQL = parse p_sql ""
+parseSQL = fmap addDepth . parse p_sql ""
 
--- Note: rule of comsuming white spaces
+addDepth :: SQL -> SQL
+addDepth (Con (From xs) y) =
+    Con (From zs) y
+    where zs = [(fst x, d) | x <- xs]
+          d = getDepth y
+addDepth (Con x y) = Con (addDepth x) (addDepth y)
+addDepth x = x
+
+getDepth :: SQL -> Maybe Integer
+getDepth (Where g) = getDepthFromGuard g
+    where
+      getDepthFromGuard :: Guard -> Maybe Integer
+      getDepthFromGuard (GGroup x) =
+        getDepthFromGuard x
+      getDepthFromGuard (GAnd x y) =
+        getDepthFromGuard x `mplus` getDepthFromGuard y
+      getDepthFromGuard (GOr x y) =
+        getDepthFromGuard x `mplus` getDepthFromGuard y
+      getDepthFromGuard (GAtom op "depth" x) =
+        let v = read x :: Integer
+        in case op of
+             "="  -> Just v
+             "<=" -> Just v
+             "<"  -> Just $ v-1
+             _    -> Nothing
+      getDepthFromGuard (GAtom {}) = Nothing
+getDepth (Con x y) =
+    getDepth x `mplus` getDepth y
+getDepth x = Nothing
+
+
+-- Note: Rule of Comsuming White Spaces
 -- A parser whose prefix is 'p_' should always consume
 -- the spaces after it parsed what it supposed to parse.
 
@@ -54,7 +85,7 @@ p_from = do
     p_bFrom
     sourceNames <- p_commaSeparatedSourceValues
     lookAhead p_eFrom
-    return $ From sourceNames
+    return $ From [(x, Nothing) | x<-sourceNames]
 
 p_where :: CharParser () SQL
 p_where = option Nil p_where'

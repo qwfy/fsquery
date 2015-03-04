@@ -1,16 +1,15 @@
 module System.FSQuery.FileMeta
     ( getTableFromOne
-    , getTableFromMany
     ) where
 
 
 import System.Directory (doesDirectoryExist, getDirectoryContents)
-import System.FilePath ((</>), takeBaseName, takeExtension)
+import System.FilePath ((</>))
 import Data.List (nub, (\\), stripPrefix, isSuffixOf)
-import Control.Monad (forM, liftM)
+import Control.Monad (mapM, liftM)
 import Data.Maybe (fromMaybe)
 
-import Data.String.Utils (replace)
+import Data.String.Utils (replace, split)
 
 import System.PosixCompat.Files
     ( getFileStatus
@@ -27,24 +26,25 @@ import System.PosixCompat.Files
 import System.FSQuery.Data
 import System.FSQuery.UnitConvert
 
-getTableFromMany :: [FilePath] -> IO Table
-getTableFromMany [] = return []
-getTableFromMany (x:xs) = do
-    t <- getTableFromOne x
-    liftM (t++) (getTableFromMany xs)
-
-getTableFromOne :: FilePath -> IO Table
-getTableFromOne topDir = do
-    paths <- getRecursivePaths topDir
+getTableFromOne :: SourceSpec -> IO Table
+getTableFromOne spec@(topDir, depth) = do
+    paths <- getRecursivePaths spec
     mapM (getFileMeta (cPath topDir ++ "/")) paths
 
-getRecursivePaths :: FilePath -> IO [FilePath]
-getRecursivePaths topDir = do
+getRecursivePaths :: SourceSpec -> IO [FilePath]
+getRecursivePaths (topDir, Just (-1)) = return []
+getRecursivePaths (topDir, depth) = do
+    paths <- getFileList topDir
+    dirs <- pickoutDirs paths
+    let d = fmap (subtract 1) depth
+    let specs = [(x, d) | x <- dirs]
+    liftM ((paths++) . concat) $ mapM getRecursivePaths specs
+
+getFileList :: FilePath -> IO [FilePath]
+getFileList topDir = do
     paths' <- getDirectoryContents topDir
     let paths'' = filter (`notElem` [".", ".."]) paths'
-    let paths = map (topDir </>) paths''
-    dirs <- pickoutDirs paths
-    liftM ((paths++) . concat) $ forM dirs getRecursivePaths
+    return $ map (topDir </>) paths''
 
 pickoutDirs :: [FilePath] -> IO [FilePath]
 pickoutDirs [] = return []
@@ -61,22 +61,20 @@ getFileMeta topDir fPath = do
     let cononPath = stripPrefix' (cPath topDir ++ "/") cononPath'
           where stripPrefix' pre str =
                   fromMaybe str $ stripPrefix pre str
-    let [name, baseName, extension] = getNames cononPath (isDirectory fStatus)
     atime <- epochToLocaleHuman ( (read $ show $ accessTime fStatus) :: Integer       )
     mtime <- epochToLocaleHuman ( (read $ show $ modificationTime fStatus) :: Integer )
     ctime <- epochToLocaleHuman ( (read $ show $ statusChangeTime fStatus) :: Integer )
-    let r = [ ("path", cononPath)
-            , ("name", name)
-            , ("basename", baseName)
-            , ("extension", extension)
-            , ("depth", getDepth cononPath)
-            , ("type", getType fStatus)
-            , ("size", show (fileSize fStatus) ++ "B")
-            , ("atime", atime)
-            , ("mtime", mtime)
-            , ("ctime", ctime)
-            ]
-    return r
+    return [ ("path", cononPath)
+           , ("name", getName cononPath)
+           , ("basename", getBaseName cononPath)
+           , ("extension", getExtension cononPath)
+           , ("depth", getDepth cononPath)
+           , ("type", getType fStatus)
+           , ("size", show (fileSize fStatus) ++ "B")
+           , ("atime", atime)
+           , ("mtime", mtime)
+           , ("ctime", ctime)
+           ]
 
 getType :: FileStatus -> String
 getType fStatus
@@ -85,19 +83,23 @@ getType fStatus
     | isSymbolicLink fStatus ="s"
     | otherwise = "<unknown>"
 
-type IsDir = Bool
-getNames :: FilePath -> IsDir -> [String]
-getNames fPath True = map cPath [name, baseName, ""]
-    where name = baseName
-          baseName = takeBaseName . cPath $ fPath
-getNames fPath False = map cPath [name, baseName, extension]
-    where name = baseName ++ case extension of
-                                   "" -> ""
-                                   x -> "." ++ x
-          baseName = takeBaseName . cPath $ fPath
-          extension = case takeExtension . cPath $ fPath of
-                        ('.':xs) -> xs
-                        x -> x
+getName :: FilePath -> FilePath
+getName = last . split "/" . cPath
+
+getBaseName :: FilePath -> FilePath
+getBaseName x =
+    case getName x of
+      ('.':rest) -> '.' : head (split "." rest)
+      y -> head $ split "." y
+
+getExtension :: FilePath -> FilePath
+getExtension x =
+    let p = case getName x of
+              ('.':rest) -> rest
+              y -> y
+    in case split "." p of
+         [z] -> ""
+         w -> last w
 
 
 getDepth :: FilePath -> String

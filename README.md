@@ -37,5 +37,16 @@ Query can also be supplied in the argument, like this:
 
 Issues
 -------
-* Currently, there is no automated test for this program. If it type-checks, it's probably correct, so they say...
-* It has problems with Unicode.
+* It's not well tested.
+* It has problems with Unicode on Windows.
+
+
+TODO
+----
+* [ ] Unicode support, including regex
+* [x] QuickCheck
+* [ ] Automated test (HUnit? Compare result with GNU find?)
+* [ ] Support time format 'YYYYmmddHHMMSS'
+* [ ] Support time delta, '-21H27M' would mean 21 hours 27 minutes ago
+* [ ] Support file content as a column (GNU grep)
+* [ ] Benchmark and performance

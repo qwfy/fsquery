@@ -1,5 +1,5 @@
 name:                FSQuery
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis:            Query file system with a SQL-like interface.
 description:         FSQuery allows you to find files by using a SQL-like language, think it as a GNU find alternative.
 license:             MIT
